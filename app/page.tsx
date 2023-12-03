@@ -1,11 +1,18 @@
 "use client";
 
 import { SyntheticEvent, useEffect, useState } from "react";
+import { toast } from "react-toastify";
+
+interface Message {
+  type: string;
+  name?: string;
+  value: string;
+}
 
 export default function Home() {
   const [connected, setConnected] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [name, setName] = useState<string>("");
   const [socket, setSocket] = useState<WebSocket>();
 
@@ -17,7 +24,11 @@ export default function Home() {
       });
 
       socket.addEventListener("message", (event) => {
-        setMessages([...messages, event.data]);
+        console.log(JSON.parse(event.data));
+        setMessages((prevMessages) => [
+          JSON.parse(event.data),
+          ...prevMessages,
+        ]);
       });
 
       return () => {
@@ -29,18 +40,34 @@ export default function Home() {
   const connect = (event: SyntheticEvent) => {
     event.preventDefault();
     console.log("Connected");
-    setSocket(new WebSocket("ws://localhost:3000"));
+    setSocket(new WebSocket("ws://localhost:5000"));
+    setMessages((prevMessages) => [
+      {
+        type: "info",
+        value: "You joined the chat",
+      },
+      ...prevMessages,
+    ]);
   };
 
   const sendMessage = (event: SyntheticEvent) => {
     event.preventDefault();
-    setMessages([...messages, message]);
-    // if (socket) {
-    //   socket.send("Hi")
-    // }
+    console.log(messages);
+    if (socket) {
+      const newMessage: Message = {
+        type: "message",
+        value: message,
+      };
+      setMessages((prevMessages) => [newMessage, ...prevMessages]);
+      console.log(message);
+      socket.send(message);
+      setMessage("");
+    } else {
+      toast.warn("Not connected to socket");
+    }
   };
 
-  return connected ? (
+  return !connected ? (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
       <header>
         <div className="text-3xl">WebSocket Chat Client</div>
@@ -69,18 +96,31 @@ export default function Home() {
           >
             Connect
           </button>
-          {messages}
         </div>
       </form>
 
       <footer>&copy; WebSocket Client</footer>
     </main>
   ) : (
-    <main className="container mx-auto flex max-h-screen min-h-screen flex-col p-8">
-      <div className="mb-4 flex grow flex-col justify-end gap-2 overflow-y-scroll px-4">
-        {messages.map((message) => (
-          <div>{message}</div>
-        ))}
+    <main className="container mx-auto flex h-screen flex-col p-8">
+      <div className="mb-4 flex h-screen flex-col-reverse gap-2 overflow-y-auto px-4">
+        {messages.map((message, index) =>
+          message.type == "message" ? (
+            <div
+              className={`chat ${message.name ? "chat-start" : "chat-end"}`}
+              key={index}
+            >
+              <div className="chat-header">
+                {message.name ? message.name : "You"}
+              </div>
+              <div className="chat-bubble">{message.value}</div>
+            </div>
+          ) : (
+            <div className="text-center" key={index}>
+              {message.value}
+            </div>
+          ),
+        )}
       </div>
       <form className="w-full">
         <label
@@ -95,15 +135,25 @@ export default function Home() {
             id="search"
             className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
             placeholder="Enter your message..."
+            value={message}
             onChange={(e) => setMessage(e.target.value)}
             required
           />
           <button
             type="submit"
-            className="absolute bottom-2.5 end-2.5 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-800"
+            className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 dark:text-blue-500 dark:hover:bg-gray-600"
             onClick={(e) => sendMessage(e)}
           >
-            Send
+            <svg
+              className="h-5 w-5 rotate-90 rtl:-rotate-90"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="currentColor"
+              viewBox="0 0 18 20"
+            >
+              <path d="m17.914 18.594-8-18a1 1 0 0 0-1.828 0l-8 18a1 1 0 0 0 1.157 1.376L8 18.281V9a1 1 0 0 1 2 0v9.281l6.758 1.689a1 1 0 0 0 1.156-1.376Z" />
+            </svg>
+            <span className="sr-only">Send message</span>
           </button>
         </div>
       </form>
