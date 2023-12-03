@@ -19,6 +19,7 @@ export default function Home() {
   useEffect(() => {
     if (socket) {
       socket.addEventListener("open", () => {
+        console.log(new Date());
         setConnected(true);
         socket.send(name);
       });
@@ -29,6 +30,11 @@ export default function Home() {
           JSON.parse(event.data),
           ...prevMessages,
         ]);
+      });
+
+      socket.addEventListener("close", () => {
+        console.log(new Date());
+        disconnect("Disconnected from server due to inactivity.");
       });
 
       return () => {
@@ -50,20 +56,24 @@ export default function Home() {
     ]);
   };
 
+  const disconnect = (message: string) => {
+    setConnected(false);
+    toast.warn(message);
+  };
+
   const sendMessage = (event: SyntheticEvent) => {
     event.preventDefault();
     console.log(messages);
-    if (socket) {
+    if (socket && socket.readyState == socket.OPEN) {
       const newMessage: Message = {
         type: "message",
         value: message,
       };
       setMessages((prevMessages) => [newMessage, ...prevMessages]);
-      console.log(message);
       socket.send(message);
       setMessage("");
     } else {
-      toast.warn("Not connected to socket");
+      disconnect("You were disconnected from the server. Please reconnect.");
     }
   };
 
@@ -85,6 +95,7 @@ export default function Home() {
             type="text"
             id="name"
             className="block w-full rounded-lg border border-gray-600 bg-gray-700 p-2.5 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
+            value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="John"
             required
@@ -131,7 +142,6 @@ export default function Home() {
         </label>
         <div className="relative w-full">
           <input
-            type="search"
             id="search"
             className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
             placeholder="Enter your message..."
@@ -141,7 +151,8 @@ export default function Home() {
           />
           <button
             type="submit"
-            className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 dark:text-blue-500 dark:hover:bg-gray-600"
+            className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 disabled:opacity-30 dark:text-blue-500 dark:hover:bg-gray-600"
+            disabled={!message}
             onClick={(e) => sendMessage(e)}
           >
             <svg
