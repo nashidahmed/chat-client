@@ -40,7 +40,7 @@ export default function Home() {
   const connect = (event: SyntheticEvent) => {
     event.preventDefault();
     console.log("Connected");
-    setSocket(new WebSocket("ws://localhost:5000"));
+    setSocket(new WebSocket(process.env.NEXT_PUBLIC_WS as string));
     setMessages((prevMessages) => [
       {
         type: "info",
