@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { SyntheticEvent, useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import Spinner from "@/public/icons/spinner.svg";
 
 interface Message {
   type: string;
@@ -10,6 +12,7 @@ interface Message {
 }
 
 export default function Home() {
+  const [loading, setLoading] = useState<boolean>(false);
   const [connected, setConnected] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -21,6 +24,7 @@ export default function Home() {
       socket.addEventListener("open", () => {
         console.log(new Date());
         setConnected(true);
+        setLoading(false);
         socket.send(name);
       });
 
@@ -35,6 +39,13 @@ export default function Home() {
       socket.addEventListener("close", () => {
         console.log(new Date());
         disconnect("Disconnected from server due to inactivity.");
+        setMessages((prevMessages) => [
+          {
+            type: "info",
+            value: "You left the chat",
+          },
+          ...prevMessages,
+        ]);
       });
 
       return () => {
@@ -45,6 +56,7 @@ export default function Home() {
 
   const connect = (event: SyntheticEvent) => {
     event.preventDefault();
+    setLoading(true);
     console.log("Connected");
     setSocket(new WebSocket(process.env.NEXT_PUBLIC_WS as string));
     setMessages((prevMessages) => [
@@ -103,9 +115,17 @@ export default function Home() {
           <button
             type="submit"
             onClick={(event) => connect(event)}
-            className="text-whitehover:bg-blue-800 w-full rounded-lg bg-blue-600 px-5 py-2.5 text-center text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-800 sm:w-auto"
+            className="text-whitehover:bg-blue-800 w-full rounded-lg bg-blue-600 px-5 py-2.5 text-center text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-600 sm:w-auto"
+            disabled={loading}
           >
-            Connect
+            {loading ? (
+              <div className="flex flex-row items-center justify-center gap-2">
+                Connecting
+                <Spinner className="h-6 w-6 animate-spin fill-white text-gray-200 dark:text-gray-600" />
+              </div>
+            ) : (
+              "Connect"
+            )}
           </button>
         </div>
       </form>
