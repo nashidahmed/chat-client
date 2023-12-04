@@ -8,6 +8,14 @@
   --background-end-rgb: 255, 255, 255;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 17, 24, 39;
+    --background-end-rgb: 17, 24, 39;
+  }
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
@@ -16,4 +24,21 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+
+  scrollbar-width: 0.4rem;
+  scrollbar-color: rgba(29, 78, 216, 0.4) rgba(29, 78, 216, 0.2);
+}
+
+::-webkit-scrollbar {
+  width: 0.4rem;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(29, 78, 216, 0.2);
+  opacity: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(29, 78, 216, 0.4);
+  border-radius: 0.5rem;
 }
