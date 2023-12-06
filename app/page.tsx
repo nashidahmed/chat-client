@@ -4,11 +4,13 @@ import Image from "next/image";
 import { SyntheticEvent, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Spinner from "@/public/icons/spinner.svg";
+import SendMessageIcon from "@/public/icons/send_message.svg";
 
 interface Message {
   type: string;
   name?: string;
   value: string;
+  timestamp?: string;
 }
 
 export default function Home() {
@@ -22,10 +24,7 @@ export default function Home() {
   useEffect(() => {
     if (socket) {
       socket.addEventListener("open", () => {
-        console.log(new Date());
-        setConnected(true);
-        setLoading(false);
-        socket.send(name);
+        handleSocketOpen();
       });
 
       socket.addEventListener("message", (event) => {
@@ -37,15 +36,7 @@ export default function Home() {
       });
 
       socket.addEventListener("close", () => {
-        console.log(new Date());
-        disconnect("Disconnected from server due to inactivity.");
-        setMessages((prevMessages) => [
-          {
-            type: "info",
-            value: "You left the chat",
-          },
-          ...prevMessages,
-        ]);
+        handleSocketClose();
       });
 
       return () => {
@@ -54,10 +45,40 @@ export default function Home() {
     }
   }, [socket]);
 
+  const handleSocketOpen = () => {
+    if (socket) {
+      setConnected(true);
+      setLoading(false);
+      const timestamp = getCurrentTime();
+      socket.send(name);
+    }
+  };
+
+  const handleSocketClose = () => {
+    if (socket) {
+      disconnect("Disconnected from server due to inactivity.");
+      setMessages((prevMessages) => [
+        {
+          type: "info",
+          value: "You left the chat",
+        },
+        ...prevMessages,
+      ]);
+    }
+  };
+
+  const getCurrentTime = () => {
+    return new Date().toLocaleString("en-US", {
+      hour: "numeric",
+      minute: "numeric",
+      hour12: true,
+    });
+  };
+
   const connect = (event: SyntheticEvent) => {
     event.preventDefault();
+
     setLoading(true);
-    console.log("Connected");
     setSocket(new WebSocket(process.env.NEXT_PUBLIC_WS as string));
     setMessages((prevMessages) => [
       {
@@ -75,14 +96,16 @@ export default function Home() {
 
   const sendMessage = (event: SyntheticEvent) => {
     event.preventDefault();
-    console.log(messages);
+
     if (socket && socket.readyState == socket.OPEN) {
+      const timestamp = getCurrentTime();
       const newMessage: Message = {
         type: "message",
+        timestamp,
         value: message,
       };
       setMessages((prevMessages) => [newMessage, ...prevMessages]);
-      socket.send(message);
+      socket.send(JSON.stringify({ msg: message, timestamp }));
       setMessage("");
     } else {
       disconnect("You were disconnected from the server. Please reconnect.");
@@ -92,7 +115,7 @@ export default function Home() {
   return !connected ? (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
       <header>
-        <div className="text-3xl">WebSocket Chat Client</div>
+        <div className="text-3xl">WebSocket Chat</div>
       </header>
 
       <form>
@@ -130,7 +153,7 @@ export default function Home() {
         </div>
       </form>
 
-      <footer>&copy; WebSocket Client</footer>
+      <footer>&copy; WebSocket Chat</footer>
     </main>
   ) : (
     <main className="container mx-auto flex h-screen flex-col p-8">
@@ -143,6 +166,9 @@ export default function Home() {
             >
               <div className="chat-header">
                 {message.name ? message.name : "You"}
+                <time className="ms-1 text-xs opacity-50">
+                  {message.timestamp}
+                </time>
               </div>
               <div className="chat-bubble">{message.value}</div>
             </div>
@@ -162,8 +188,8 @@ export default function Home() {
         </label>
         <div className="relative w-full">
           <input
-            id="search"
-            className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
+            id="send-message"
+            className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 pr-12 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
             placeholder="Enter your message..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -175,15 +201,7 @@ export default function Home() {
             disabled={!message}
             onClick={(e) => sendMessage(e)}
           >
-            <svg
-              className="h-5 w-5 rotate-90 rtl:-rotate-90"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="currentColor"
-              viewBox="0 0 18 20"
-            >
-              <path d="m17.914 18.594-8-18a1 1 0 0 0-1.828 0l-8 18a1 1 0 0 0 1.157 1.376L8 18.281V9a1 1 0 0 1 2 0v9.281l6.758 1.689a1 1 0 0 0 1.156-1.376Z" />
-            </svg>
+            <SendMessageIcon className="h-5 w-5 rotate-90" />
             <span className="sr-only">Send message</span>
           </button>
         </div>
