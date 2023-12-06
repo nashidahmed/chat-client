@@ -23,18 +23,21 @@ export default function Home() {
 
   useEffect(() => {
     if (socket) {
+      // Handle opening of socket
       socket.addEventListener("open", () => {
         handleSocketOpen();
       });
 
+      // Handle messages from the server
       socket.addEventListener("message", (event) => {
-        console.log(JSON.parse(event.data));
+        // Update messages in the client
         setMessages((prevMessages) => [
           JSON.parse(event.data),
           ...prevMessages,
         ]);
       });
 
+      // Handle closing of socket
       socket.addEventListener("close", () => {
         handleSocketClose();
       });
@@ -45,6 +48,7 @@ export default function Home() {
     }
   }, [socket]);
 
+  // Send name of newly connected client
   const handleSocketOpen = () => {
     if (socket) {
       setConnected(true);
@@ -54,6 +58,7 @@ export default function Home() {
     }
   };
 
+  // Disconnect from server and inform connected clients
   const handleSocketClose = () => {
     if (socket) {
       disconnect("Disconnected from server due to inactivity.");
@@ -67,6 +72,7 @@ export default function Home() {
     }
   };
 
+  // Helper function: get the current time when the message is sent
   const getCurrentTime = () => {
     return new Date().toLocaleString("en-US", {
       hour: "numeric",
@@ -75,6 +81,7 @@ export default function Home() {
     });
   };
 
+  // When the user connects, initiate WebSocket and show user that they've joined the chat
   const connect = (event: SyntheticEvent) => {
     event.preventDefault();
 
@@ -89,11 +96,13 @@ export default function Home() {
     ]);
   };
 
+  // On disconnect, notify the user of disconnection with a message explaining the reason for disconnection
   const disconnect = (message: string) => {
     setConnected(false);
     toast.warn(message);
   };
 
+  // Send the message to the server. Server will in turn broadcast this message to all connected clients except the sender
   const sendMessage = (event: SyntheticEvent) => {
     event.preventDefault();
 
@@ -113,15 +122,17 @@ export default function Home() {
   };
 
   return !connected ? (
+    // If user is not connected to server, show name input page
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
       <header>
         <div className="text-3xl">WebSocket Chat</div>
       </header>
 
+      {/* Name input form */}
       <form>
         <div className="flex flex-col gap-4">
           <label
-            htmlFor="first_name"
+            htmlFor="name"
             className="mb-2 block text-sm font-medium text-white"
           >
             Enter your name
@@ -129,6 +140,7 @@ export default function Home() {
           <input
             type="text"
             id="name"
+            autoFocus
             className="block w-full rounded-lg border border-gray-600 bg-gray-700 p-2.5 text-sm text-white placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -156,7 +168,9 @@ export default function Home() {
       <footer>&copy; WebSocket Chat</footer>
     </main>
   ) : (
+    // If user is connected to server, show the chat
     <main className="container mx-auto flex h-screen flex-col p-8">
+      {/* Display content of the messages */}
       <div className="mb-4 flex h-screen flex-col-reverse gap-2 overflow-y-auto px-4">
         {messages.map((message, index) =>
           message.type == "message" ? (
@@ -179,9 +193,10 @@ export default function Home() {
           ),
         )}
       </div>
+      {/* Input form for user to send messages to the chat */}
       <form className="w-full">
         <label
-          htmlFor="search"
+          htmlFor="send-message"
           className="sr-only mb-2 text-sm font-medium text-white"
         >
           Send
@@ -189,6 +204,7 @@ export default function Home() {
         <div className="relative w-full">
           <input
             id="send-message"
+            autoFocus
             className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 pr-12 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
             placeholder="Enter your message..."
             value={message}
