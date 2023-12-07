@@ -53,7 +53,6 @@ export default function Home() {
     if (socket) {
       setConnected(true);
       setLoading(false);
-      const timestamp = getCurrentTime();
       socket.send(name);
     }
   };
@@ -151,7 +150,7 @@ export default function Home() {
             type="submit"
             onClick={(event) => connect(event)}
             className="text-whitehover:bg-blue-800 w-full rounded-lg bg-blue-600 px-5 py-2.5 text-center text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-600 sm:w-auto"
-            disabled={loading}
+            disabled={loading || !name}
           >
             {loading ? (
               <div className="flex flex-row items-center justify-center gap-2">
