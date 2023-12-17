@@ -5,6 +5,23 @@ import { SyntheticEvent, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Spinner from "@/public/icons/spinner.svg";
 import SendMessageIcon from "@/public/icons/send_message.svg";
+import { ec } from "elliptic";
+
+class WS extends WebSocket {
+  private readonly ec: ec;
+
+  constructor(url: string, name: string) {
+    super(url);
+    this.ec = new ec("secp256k1");
+
+    // Generate an ECDSA key pair on the client side
+    const keyPair = this.ec.genKeyPair();
+
+    // Export the public key and send it to the server
+    const publicKey = keyPair.getPublic("hex");
+    this.send(JSON.stringify({ name, key: publicKey }));
+  }
+}
 
 interface Message {
   type: string;
