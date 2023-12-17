@@ -5,10 +5,17 @@ import { SyntheticEvent, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Spinner from "@/public/icons/spinner.svg";
 import SendMessageIcon from "@/public/icons/send_message.svg";
+import { ec as EC } from "elliptic";
+
+interface User {
+  name: string;
+  pubKey: string;
+}
 
 interface Message {
   type: string;
-  name?: string;
+  from?: string;
+  to?: string;
   value: string;
   timestamp?: string;
 }
@@ -19,7 +26,11 @@ export default function Home() {
   const [message, setMessage] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [name, setName] = useState<string>("");
+  const [sender, setSender] = useState<User>();
   const [socket, setSocket] = useState<WebSocket>();
+  const [users, setUsers] = useState<User[]>([]);
+  const [recipient, setRecipient] = useState<User>();
+  const [priKey, setPriKey] = useState<string>();
 
   useEffect(() => {
     if (socket) {
@@ -30,11 +41,16 @@ export default function Home() {
 
       // Handle messages from the server
       socket.addEventListener("message", (event) => {
-        // Update messages in the client
-        setMessages((prevMessages) => [
-          JSON.parse(event.data),
-          ...prevMessages,
-        ]);
+        const parsedMessage = JSON.parse(event.data);
+        console.log(parsedMessage);
+
+        if (parsedMessage.type == "info") {
+          // Update users
+          setUsers(parsedMessage.value);
+        } else {
+          // Update messages in the client
+          setMessages((prevMessages) => [parsedMessage, ...prevMessages]);
+        }
       });
 
       // Handle closing of socket
@@ -53,21 +69,23 @@ export default function Home() {
     if (socket) {
       setConnected(true);
       setLoading(false);
-      socket.send(name);
+      const ec = new EC("secp256k1");
+
+      // Generate an ECDSA key pair on the client side
+      const keyPair = ec.genKeyPair();
+      const newUser = { name, pubKey: keyPair.getPublic("hex") };
+      setSender(newUser);
+      setPriKey(keyPair.getPrivate("hex"));
+      socket.send(JSON.stringify(newUser));
     }
   };
 
   // Disconnect from server and inform connected clients
   const handleSocketClose = () => {
     if (socket) {
+      setSender(undefined);
+      setRecipient(undefined);
       disconnect("Disconnected from server due to inactivity.");
-      setMessages((prevMessages) => [
-        {
-          type: "info",
-          value: "You left the chat",
-        },
-        ...prevMessages,
-      ]);
     }
   };
 
@@ -86,13 +104,6 @@ export default function Home() {
 
     setLoading(true);
     setSocket(new WebSocket(process.env.NEXT_PUBLIC_WS as string));
-    setMessages((prevMessages) => [
-      {
-        type: "info",
-        value: "You joined the chat",
-      },
-      ...prevMessages,
-    ]);
   };
 
   // On disconnect, notify the user of disconnection with a message explaining the reason for disconnection
@@ -109,11 +120,20 @@ export default function Home() {
       const timestamp = getCurrentTime();
       const newMessage: Message = {
         type: "message",
+        from: sender?.pubKey,
+        to: recipient?.pubKey,
         timestamp,
         value: message,
       };
       setMessages((prevMessages) => [newMessage, ...prevMessages]);
-      socket.send(JSON.stringify({ msg: message, timestamp }));
+      socket.send(
+        JSON.stringify({
+          msg: message,
+          from: sender?.pubKey,
+          to: recipient?.pubKey,
+          timestamp,
+        }),
+      );
       setMessage("");
     } else {
       disconnect("You were disconnected from the server. Please reconnect.");
@@ -168,59 +188,111 @@ export default function Home() {
     </main>
   ) : (
     // If user is connected to server, show the chat
-    <main className="container mx-auto flex h-screen flex-col p-8">
-      {/* Display content of the messages */}
-      <div className="mb-4 flex h-screen flex-col-reverse gap-2 overflow-y-auto px-4">
-        {messages.map((message, index) =>
-          message.type == "message" ? (
-            <div
-              className={`chat ${message.name ? "chat-start" : "chat-end"}`}
-              key={index}
-            >
-              <div className="chat-header">
-                {message.name ? message.name : "You"}
-                <time className="ms-1 text-xs opacity-50">
-                  {message.timestamp}
-                </time>
-              </div>
-              <div className="chat-bubble">{message.value}</div>
-            </div>
-          ) : (
-            <div className="text-center" key={index}>
-              {message.value}
-            </div>
-          ),
-        )}
-      </div>
-      {/* Input form for user to send messages to the chat */}
-      <form className="w-full">
-        <label
-          htmlFor="send-message"
-          className="sr-only mb-2 text-sm font-medium text-white"
-        >
-          Send
-        </label>
-        <div className="relative w-full">
-          <input
-            id="send-message"
-            autoFocus
-            className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 pr-12 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
-            placeholder="Enter your message..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            required
-          />
-          <button
-            type="submit"
-            className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 disabled:opacity-30 dark:text-blue-500 dark:hover:bg-gray-600"
-            disabled={!message}
-            onClick={(e) => sendMessage(e)}
-          >
-            <SendMessageIcon className="h-5 w-5 rotate-90" />
-            <span className="sr-only">Send message</span>
-          </button>
+    <main className="container mx-auto flex h-screen p-8">
+      <div className="w-1/4 overflow-y-auto rounded-lg bg-gray-800">
+        <div className="flex h-16 items-center justify-center">
+          Connected users ({users.length})
         </div>
-      </form>
+        {users.map((user) => (
+          <div
+            key={user.pubKey}
+            onClick={() =>
+              sender?.name !== user.name ? setRecipient(user) : {}
+            }
+            className={`flex h-14 items-center rounded-lg border border-gray-900 ps-2 ${
+              sender?.name !== user.name
+                ? "cursor-pointer bg-gray-700"
+                : "opacity-70"
+            }`}
+          >
+            {sender?.name == user.name ? `Me (${user.name})` : user.name}{" "}
+            <span className="overflow-hidden text-ellipsis ps-2 text-sm text-gray-400">
+              Public Key: {user.pubKey}
+            </span>
+          </div>
+        ))}
+      </div>
+      {recipient ? (
+        <div className="flex w-3/4 grow flex-col px-4">
+          <div className="flex h-16 items-center rounded-xl bg-gray-800 px-4 text-lg">
+            {recipient?.name}{" "}
+            <span className="overflow-hidden text-ellipsis ps-2 text-sm text-gray-400">
+              Public Key: {recipient?.pubKey}
+            </span>
+          </div>
+          <div className="mx-auto mt-2 flex w-fit select-none justify-center whitespace-nowrap rounded-lg bg-gray-600 px-3 py-1.5 font-sans text-xs font-bold uppercase text-white">
+            <span>End to end encrypted</span>
+          </div>
+          <div className="mb-4 flex grow flex-col justify-end gap-2 overflow-y-auto">
+            <div className="flex flex-col-reverse">
+              {/* Display content of the messages */}
+              {messages
+                .filter(
+                  (message) =>
+                    message.from == recipient.pubKey ||
+                    message.to == recipient.pubKey,
+                )
+                .map((message, index) =>
+                  message.type == "message" ? (
+                    <div
+                      className={`chat ${
+                        message.to == sender?.pubKey ? "chat-start" : "chat-end"
+                      }`}
+                      key={index}
+                    >
+                      <div className="chat-header">
+                        {message.from == sender?.pubKey
+                          ? "You"
+                          : recipient?.name}
+                        <time className="ms-1 text-xs opacity-50">
+                          {message.timestamp}
+                        </time>
+                      </div>
+                      <div className="chat-bubble">{message.value}</div>
+                    </div>
+                  ) : (
+                    <div className="text-center" key={index}>
+                      {message.value}
+                    </div>
+                  ),
+                )}
+            </div>
+            {/* Input form for user to send messages to the chat */}
+            <form className="w-full">
+              <label
+                htmlFor="send-message"
+                className="sr-only mb-2 text-sm font-medium text-white"
+              >
+                Send
+              </label>
+              <div className="relative w-full">
+                <input
+                  id="send-message"
+                  autoFocus
+                  className="block w-full rounded-full border border-gray-600 bg-gray-700 p-4 pr-12 text-sm text-white focus:border-blue-500 focus:ring-blue-500 dark:placeholder-gray-400"
+                  placeholder="Enter your message..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 disabled:opacity-30 dark:text-blue-500 dark:hover:bg-gray-600"
+                  disabled={!message}
+                  onClick={(e) => sendMessage(e)}
+                >
+                  <SendMessageIcon className="h-5 w-5 rotate-90" />
+                  <span className="sr-only">Send message</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="flex grow items-center justify-center text-2xl">
+          Welcome! Click on a user to share messages!
+        </div>
+      )}
     </main>
   );
 }
