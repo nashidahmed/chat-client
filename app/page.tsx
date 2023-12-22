@@ -1,11 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { SyntheticEvent, useEffect, useState } from "react";
+import { SyntheticEvent, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Spinner from "@/public/icons/spinner.svg";
 import SendMessageIcon from "@/public/icons/send_message.svg";
-import { ec as EC } from "elliptic";
+import {
+  KeyPair,
+  decryptString,
+  encryptString,
+  generateKeyPair,
+} from "./utils/crypto";
 
 interface User {
   name: string;
@@ -30,7 +35,7 @@ export default function Home() {
   const [socket, setSocket] = useState<WebSocket>();
   const [users, setUsers] = useState<User[]>([]);
   const [recipient, setRecipient] = useState<User>();
-  const [priKey, setPriKey] = useState<string>();
+  const privateKey = useRef("");
 
   useEffect(() => {
     if (socket) {
@@ -41,15 +46,22 @@ export default function Home() {
 
       // Handle messages from the server
       socket.addEventListener("message", (event) => {
-        const parsedMessage = JSON.parse(event.data);
-        console.log(parsedMessage);
+        console.log("Received message");
+        let parsedMessage = JSON.parse(event.data);
 
         if (parsedMessage.type == "info") {
           // Update users
           setUsers(parsedMessage.value);
         } else {
           // Update messages in the client
-          setMessages((prevMessages) => [parsedMessage, ...prevMessages]);
+          decryptString(
+            parsedMessage.value,
+            privateKey.current,
+            parsedMessage.from,
+          ).then((message) => {
+            parsedMessage = { ...parsedMessage, value: message };
+            setMessages((prevMessages) => [parsedMessage, ...prevMessages]);
+          });
         }
       });
 
@@ -69,14 +81,17 @@ export default function Home() {
     if (socket) {
       setConnected(true);
       setLoading(false);
-      const ec = new EC("secp256k1");
 
-      // Generate an ECDSA key pair on the client side
-      const keyPair = ec.genKeyPair();
-      const newUser = { name, pubKey: keyPair.getPublic("hex") };
-      setSender(newUser);
-      setPriKey(keyPair.getPrivate("hex"));
-      socket.send(JSON.stringify(newUser));
+      // Generate a private public key pair
+      generateKeyPair().then(({ privateKey, publicKey }) => {
+        privateKey.current = privateKey;
+        console.log("Public Key:", publicKey);
+        console.log("Private Key:", privateKey);
+
+        const newUser = { name, pubKey: publicKey };
+        setSender(newUser);
+        socket.send(JSON.stringify(newUser));
+      });
     }
   };
 
@@ -99,7 +114,7 @@ export default function Home() {
   };
 
   // When the user connects, initiate WebSocket and show user that they've joined the chat
-  const connect = (event: SyntheticEvent) => {
+  const connect = async (event: SyntheticEvent) => {
     event.preventDefault();
 
     setLoading(true);
@@ -113,7 +128,7 @@ export default function Home() {
   };
 
   // Send the message to the server. Server will in turn broadcast this message to all connected clients except the sender
-  const sendMessage = (event: SyntheticEvent) => {
+  const sendMessage = async (event: SyntheticEvent) => {
     event.preventDefault();
 
     if (socket && socket.readyState == socket.OPEN) {
@@ -128,7 +143,11 @@ export default function Home() {
       setMessages((prevMessages) => [newMessage, ...prevMessages]);
       socket.send(
         JSON.stringify({
-          msg: message,
+          msg: await encryptString(
+            message,
+            privateKey.current,
+            recipient?.pubKey as string,
+          ),
           from: sender?.pubKey,
           to: recipient?.pubKey,
           timestamp,
@@ -168,7 +187,7 @@ export default function Home() {
           />
           <button
             type="submit"
-            onClick={(event) => connect(event)}
+            onClick={connect}
             className="text-whitehover:bg-blue-800 w-full rounded-lg bg-blue-600 px-5 py-2.5 text-center text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-600 sm:w-auto"
             disabled={loading || !name}
           >
@@ -193,9 +212,9 @@ export default function Home() {
         <div className="flex h-16 items-center justify-center">
           Connected users ({users.length})
         </div>
-        {users.map((user) => (
+        {users.map((user, index) => (
           <div
-            key={user.pubKey}
+            key={index}
             onClick={() =>
               sender?.name !== user.name ? setRecipient(user) : {}
             }
@@ -207,7 +226,7 @@ export default function Home() {
           >
             {sender?.name == user.name ? `Me (${user.name})` : user.name}{" "}
             <span className="overflow-hidden text-ellipsis ps-2 text-sm text-gray-400">
-              Public Key: {user.pubKey}
+              Public Key: {user.pubKey.slice(54)}
             </span>
           </div>
         ))}
@@ -217,7 +236,7 @@ export default function Home() {
           <div className="flex h-16 items-center rounded-xl bg-gray-800 px-4 text-lg">
             {recipient?.name}{" "}
             <span className="overflow-hidden text-ellipsis ps-2 text-sm text-gray-400">
-              Public Key: {recipient?.pubKey}
+              Public Key: {recipient?.pubKey.slice(54)}
             </span>
           </div>
           <div className="mx-auto mt-2 flex w-fit select-none justify-center whitespace-nowrap rounded-lg bg-gray-600 px-3 py-1.5 font-sans text-xs font-bold uppercase text-white">
@@ -279,7 +298,7 @@ export default function Home() {
                   type="submit"
                   className="absolute bottom-2.5 end-2.5 inline-flex cursor-pointer justify-center rounded-full p-2 text-blue-600 hover:bg-blue-100 disabled:opacity-30 dark:text-blue-500 dark:hover:bg-gray-600"
                   disabled={!message}
-                  onClick={(e) => sendMessage(e)}
+                  onClick={sendMessage}
                 >
                   <SendMessageIcon className="h-5 w-5 rotate-90" />
                   <span className="sr-only">Send message</span>
