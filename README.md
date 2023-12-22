@@ -4,6 +4,8 @@ WebSocket Chat is a simple, secure user-friendly Hop-On Hop-Off chat application
 
 The app allows any user to connect and view all the users currently connected to the server. The user can then securely share messages with other users connected to the server. Messages are secured using a key pair generated when the user first connects to the server.
 
+**Note:** This application was built as part of a class project intended to enhance the security of WebSocket communication with the help of public key infrastructure (PKI).
+
 ### UI snippets
 ![landing page](https://github.com/nashidahmed/chat-client/assets/37153833/1629f505-8192-4107-a893-4529d534d8b5)
 
