@@ -83,10 +83,10 @@ export default function Home() {
       setLoading(false);
 
       // Generate a private public key pair
-      generateKeyPair().then(({ privateKey, publicKey }) => {
-        privateKey.current = privateKey;
+      generateKeyPair().then(({ privateKey: privKey, publicKey }) => {
+        privateKey.current = privKey;
         console.log("Public Key:", publicKey);
-        console.log("Private Key:", privateKey);
+        console.log("Private Key:", privKey);
 
         const newUser = { name, pubKey: publicKey };
         setSender(newUser);
